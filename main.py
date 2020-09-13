@@ -1,14 +1,18 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_restful import Resource, Api, reqparse, fields, marshal_with
 from flask_sqlalchemy import SQLAlchemy
+from flask_marshmallow import Marshmallow
+
 
 app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 database = SQLAlchemy(app)
+ma = Marshmallow(app)
 
 
 event_put_args = reqparse.RequestParser()
+event_put_args.add_argument("id", type=int, help = "help id")
 event_put_args.add_argument("name", type=str, help = "help id")
 event_put_args.add_argument("description", type=str, help = "help id")
 event_put_args.add_argument("meeting_link", type=str, help = "help id")
@@ -25,6 +29,9 @@ class EventModel(database.Model):
     donation_amount = database.Column(database.Float(255), nullable=False)
     event_date = database.Column(database.String(255), nullable=False)
     user_id = database.Column(database.Integer, primary_key=False)
+
+    def serialize(self):
+        return {"id"}
 
 resource_fields = {
     'id': fields.Integer,
@@ -55,6 +62,21 @@ class Event(Resource):
         database.session.commit()
         return new_event, 201
 
-api.add_resource(Event,"/event/<int:event_id>")
+class EventsSchema(ma.Schema):
+    class Meta:
+        fields = ('id','name','description','meeting_link','donation_amount', 'event_date', 'user_id')
+
+event_schema = EventsSchema()
+events_schema = EventsSchema(many=True)
+
+class Events(Resource):
+    def get(self):
+        result = EventModel.query.all()
+        result = events_schema.dump(result)
+        return jsonify(result)
+
+api.add_resource(Event,"/events/<int:event_id>")
+api.add_resource(Events, '/events')
+
 if __name__ == "__main__":
     app.run(debug=True)
